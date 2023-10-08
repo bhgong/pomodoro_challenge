@@ -4,14 +4,14 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class BackUpCode extends StatefulWidget {
+  const BackUpCode({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<BackUpCode> createState() => _BackUpCodeState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
+class _BackUpCodeState extends State<BackUpCode>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animationController;
   late Animation<double> _animation;
@@ -30,10 +30,9 @@ class _HomeScreenState extends State<HomeScreen>
   List<bool> isSelected = List.filled(5, false);
   bool isRunning = false;
   bool isRestart = false;
-  bool isInitState = true;
+  bool isInitState = false;
   bool isBreakTime = false;
   bool isPaused = false;
-  bool isTimerInit = false;
   late Timer timer;
 
   @override
@@ -50,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen>
       end: 2.0,
     ).animate(_curve);
 
-    // _animationController.addListener(() {});
+    _animationController.addListener(() {});
   }
 
   @override
@@ -61,33 +60,36 @@ class _HomeScreenState extends State<HomeScreen>
 
   void onTick(Timer timer) {
     if (totalSeconds == 0) {
-      if (totalSecondsSel != 0 && isBreakTime) {
-        // 브레이크 타임 0이 되고 난 다음 + 초기상태
-        totalSeconds = totalSecondsSel;
-        isInitState = true;
-        isBreakTime = false;
-        _animationController.reverse(from: 0.005);
-        _animationController.duration = Duration(seconds: totalSeconds);
-      } else if (totalSecondsSel != 0 && !isBreakTime) {
-        // 초기상태가 아니고 한바퀴 돌아왔을 때
-        finishedRound++;
-        if ((finishedRound % 4) == 0) {
-          totalPomodoro++;
-          finishedRound = 0;
+      setState(() {
+        if (isInitState) {
+          isInitState = false;
+
+          finishedRound++;
+          if ((finishedRound % 4) == 0) {
+            totalPomodoro++;
+            finishedRound = 0;
+          }
+          totalSeconds = breakFiveMinutes;
+          isBreakTime = true;
+        } else {
+          if (totalSecondsSel != 0) {
+            totalSeconds = totalSecondsSel;
+            isInitState = true;
+          }
         }
-        totalSeconds = breakFiveMinutes;
-        isBreakTime = true;
-        isInitState = true;
-        _animationController.reverse(from: 0.005);
-        _animationController.duration = Duration(seconds: totalSeconds);
-      } // 여기에 조건이 하나 더 붙어야해. 완료 후 5초로 설정될거냐 아니냐에 따라서.
-      isRunning = false; // 다시 0이 되었으니까 Running false로 둬야지
+        if (isBreakTime) {
+          _animationController.reverse(from: startValue);
+          _animationController.duration = Duration(seconds: totalSeconds);
+        }
+
+        isRunning = false;
+      });
       timer.cancel();
     } else {
-      totalSeconds = totalSeconds - 1;
+      setState(() {
+        totalSeconds = totalSeconds - 1;
+      });
     }
-
-    setState(() {});
   }
 
   void onMinuteSelPressed(int indexMin) {
@@ -123,20 +125,26 @@ class _HomeScreenState extends State<HomeScreen>
       onTick,
     );
 
-    isTimerInit = true;
+    if (isInitState || isBreakTime) {
+      _animationController.forward(from: startValue);
+    } else if (isPaused) {
+      _animationController.forward(
+        from: _animation.value,
+      ); // 멈춘상태에서 바로시작하는 지 확인
+      isPaused = false;
+    }
+
     setState(() {
       if (totalSeconds != 0) {
         isRunning = true;
-        if (isInitState) {
-          _animationController.forward(from: startValue);
-          isInitState = false;
-        }
-      } else if (isBreakTime) {
-        _animationController.reset();
       }
-      if (isPaused) {
-        _animationController.forward(); // 멈춘상태에서 바로시작하는 지 확인
-        isPaused = false;
+      if (isBreakTime || isInitState) {
+        _animation = Tween(
+          begin: startValue,
+          end: 2.0,
+        ).animate(
+          _curve,
+        );
       }
     });
   }
@@ -148,32 +156,31 @@ class _HomeScreenState extends State<HomeScreen>
       totalSecondsSel = 0;
       isRunning = false;
       totalPomodoro = 0;
-      isSelected = List.filled(isSelected.length, false);
     });
     timer.cancel();
   }
 
   void onPausePressed() {
-    _animationController.stop();
     timer.cancel();
+    _animationController.stop();
 
     setState(() {
       isPaused = true;
       isRunning = false;
+      if (isPaused) {
+        _animation = Tween(
+          begin: _animation.value,
+          end: 2.0,
+        ).animate(_curve);
+      }
     });
   }
 
   void stopTick() {
-    if (!isTimerInit) return;
     timer.cancel();
     _animationController.reverse(from: 0.005);
-    if (!isBreakTime) {
-      totalSeconds = totalSecondsSel;
-    } else if (isBreakTime) {
-      totalSeconds = breakFiveMinutes;
-    }
+    totalSeconds = totalSecondsSel;
     setState(() {
-      isInitState = true;
       isRunning = false;
     });
   }
@@ -453,7 +460,7 @@ class PomodoroPainter extends CustomPainter {
       redArcPaint,
     );
 
-    // print(progress);
+    print(progress);
   }
 
   @override
